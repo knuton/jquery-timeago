@@ -29,20 +29,26 @@
     settings: {
       refreshMillis: 60000,
       allowFuture: false,
+      granularity: 'seconds',
       strings: {
         prefixAgo: null,
         prefixFromNow: null,
         suffixAgo: "ago",
         suffixFromNow: "from now",
         seconds: "less than a minute",
+        thisMinute: "this minute",
         minute: "about a minute",
         minutes: "%d minutes",
+        thisHour: "this hour",
         hour: "about an hour",
         hours: "about %d hours",
+        thisDay: "today",
         day: "a day",
         days: "%d days",
+        thisMonth: "this month",
         month: "about a month",
         months: "%d months",
+        thisYear: "this year",
         year: "about a year",
         years: "%d years",
         numbers: []
@@ -72,17 +78,46 @@
         return string.replace(/%d/i, value);
       }
 
-      var words = seconds < 45 && substitute($l.seconds, Math.round(seconds)) ||
-        seconds < 90 && substitute($l.minute, 1) ||
-        minutes < 45 && substitute($l.minutes, Math.round(minutes)) ||
-        minutes < 90 && substitute($l.hour, 1) ||
-        hours < 24 && substitute($l.hours, Math.round(hours)) ||
-        hours < 48 && substitute($l.day, 1) ||
-        days < 30 && substitute($l.days, Math.floor(days)) ||
-        days < 60 && substitute($l.month, 1) ||
-        days < 365 && substitute($l.months, Math.floor(days / 30)) ||
-        years < 2 && substitute($l.year, 1) ||
-        substitute($l.years, Math.floor(years));
+      var words;
+
+      if (isShown('seconds') && seconds < 45) {
+        words = substitute($l.seconds, Math.round(seconds));
+      } else if (!isShown('seconds') && isShown('minutes') && seconds < 45) {
+        words = substitute($l.thisMinute, Math.round(seconds));
+        suffix = prefix = null;
+      } else if (isShown('minutes') && seconds < 90) {
+        words = substitute($l.minute, 1);
+      } else if (isShown('minutes') && minutes < 45) {
+        words = substitute($l.minutes, Math.round(minutes));
+      } else if (!isShown('minutes') && isShown('hours') && minutes < 45) {
+        words = substitute($l.thisHour, Math.round(minutes));
+        suffix = prefix = null;
+      } else if (isShown('hours') && minutes < 90) {
+        words = substitute($l.hour, 1);
+      } else if (isShown('hours') && hours < 24) {
+        words = substitute($l.hours, Math.round(hours));
+      } else if (!isShown('hours') && isShown('days') && hours < 24) {
+        words = substitute($l.thisDay, Math.round(hours));
+        suffix = prefix = null;
+      } else if (isShown('days') && hours < 48) {
+        words = substitute($l.day, 1);
+      } else if (isShown('days') && days < 30) {
+        words = substitute($l.days, Math.floor(days));
+      } else if (!isShown('days') && isShown('months') && days < 30) {
+        words = substitute($l.thisMonth, Math.floor(days));
+        suffix = prefix = null;
+      } else if (isShown('months') && days < 60) {
+        words = substitute($l.month, 1);
+      } else if (isShown('months') && days < 365) {
+        words = substitute($l.months, Math.floor(days / 30));
+      } else if (!isShown('months') && days < 365) {
+        words = substitute($l.thisYear, Math.floor(days / 30));
+        suffix = prefix = null;
+      } else if (years < 2) {
+        words = substitute($l.year, 1);
+      } else {
+        words = substitute($l.years, Math.floor(years));
+      }
 
       return $.trim([prefix, words, suffix].join(" "));
     },
@@ -102,11 +137,13 @@
     }
   });
 
-  $.fn.timeago = function() {
+  $.fn.timeago = function(options) {
+    var $s = $t.settings;
+    $.extend(true, $s, options || {});
+
     var self = this;
     self.each(refresh);
 
-    var $s = $t.settings;
     if ($s.refreshMillis > 0) {
       setInterval(function() { self.each(refresh); }, $s.refreshMillis);
     }
@@ -135,6 +172,28 @@
 
   function inWords(date) {
     return $t.inWords(distance(date));
+  }
+
+  function isShown(timeUnit) {
+    var grain = $t.settings.granularity || "seconds";
+    switch (timeUnit) {
+      case "seconds":
+        return grain === "seconds";
+      case "minutes":
+        return grain === "seconds" || grain === "minutes";
+      case "hours":
+        return grain === "seconds" || grain === "minutes" || grain === "hours";
+      case "days":
+        return grain === "seconds" || grain === "minutes" || grain === "hours" ||
+          grain === "days";
+      case "months":
+        return grain === "seconds" || grain === "minutes" || grain === "hours" ||
+          grain === "days" || grain === "months";
+      case "years":
+        return true;
+      default:
+        return false;
+    }
   }
 
   function distance(date) {
